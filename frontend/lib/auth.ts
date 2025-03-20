@@ -1,116 +1,102 @@
-// frontend/lib/auth.ts
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 
 const API_URL = 'http://127.0.0.1:8080';
 
 export async function register(username: string) {
-  try {
-    const optionsResp = await fetch(`${API_URL}/api/auth/register-options`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username }),
-    });
-    const optionsData = await optionsResp.json();
-    console.log('Options response:', optionsData);
-
-    if (!optionsResp.ok) {
-      const errorMsg = optionsData.error ? String(optionsData.error) : 'Failed to get registration options';
-      throw new Error(errorMsg);
-    }
-
-    const { challenge, user_id } = optionsData;
-    if (!challenge || !user_id) {
-      throw new Error('Invalid registration options: missing challenge or user_id');
-    }
-
-    const publicKey = {
-      ...challenge.publicKey,
-      challenge: challenge.publicKey.challenge,
-      user: {
-        ...challenge.publicKey.user,
-        id: Uint8Array.from(atob(challenge.publicKey.user.id), c => c.charCodeAt(0)),
-      },
-    };
-
-    console.log('Starting WebAuthn registration with publicKey:', publicKey);
-    let credential;
     try {
-      credential = await startRegistration(publicKey);
-    } catch (webauthnError) {
-      console.error('WebAuthn registration failed:', webauthnError);
-      throw new Error(`WebAuthn error: ${webauthnError.message || webauthnError}`);
+        // Step 1: Fetch registration options
+        const initResp = await fetch(`${API_URL}/api/reg/init`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username }),
+        });
+        const initData = await initResp.json();
+        if (!initResp.ok) throw new Error(initData.error || 'Failed to init registration');
+
+        // Log and validate response
+        console.log('Registration init response:', JSON.stringify(initData, null, 2));
+        if (!initData.challenge || !initData.challenge.publicKey || !initData.challenge.publicKey.challenge) {
+            throw new Error('Invalid registration options: missing challenge data');
+        }
+        if (!initData.user_id) {
+            throw new Error('Missing user_id in response');
+        }
+
+        // Step 2: Generate passkey
+        const options = initData.challenge; // Already includes publicKey
+        console.log('Options for startRegistration:', JSON.stringify(options, null, 2));
+        const credential = await startRegistration(options);
+
+        // Step 3: Complete registration
+        const completeResp = await fetch(`${API_URL}/api/reg/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: initData.user_id, credential }),
+        });
+        const completeData = await completeResp.json();
+        if (!completeResp.ok) throw new Error(completeData.error || 'Registration failed');
+
+        localStorage.setItem('token', completeData.token);
+        return completeData.user;
+    } catch (error) {
+        console.error('Register error:', error);
+        throw error;
     }
-    console.log('Credential created:', credential);
-
-    console.log('Sending verification request with:', { username, user_id, credential });
-    const verifyResp = await fetch(`${API_URL}/api/auth/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, user_id, credential }),
-    });
-    const verifyData = await verifyResp.json();
-    console.log('Verify response:', verifyData);
-
-    if (!verifyResp.ok) {
-      const errorMsg = verifyData.error ? String(verifyData.error) : 'Registration failed';
-      throw new Error(errorMsg);
-    }
-
-    if (!verifyData.token || !verifyData.user) {
-      throw new Error('Invalid registration response: missing token or user');
-    }
-
-    localStorage.setItem('token', verifyData.token);
-    return verifyData.user;
-  } catch (error) {
-    console.error('Registration error:', error);
-    throw error;
-  }
 }
 
 export async function login(username: string) {
-  try {
-    const optionsResp = await fetch(`${API_URL}/api/auth/login-options`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username }),
-    });
-    const options = await optionsResp.json();
-    console.log('Login options response:', options);
+    try {
+        // Step 1: Fetch authentication options
+        const startResp = await fetch(`${API_URL}/api/auth/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username }),
+        });
+        const startData = await startResp.json();
+        if (!startResp.ok) throw new Error(startData.error || 'Failed to start authentication');
 
-    if (!optionsResp.ok) {
-      const errorMsg = options.error ? String(options.error) : 'Failed to get login options';
-      throw new Error(errorMsg);
+        // Log and validate response
+        console.log('Authentication start response:', JSON.stringify(startData, null, 2));
+        if (!startData.challenge || !startData.allowCredentials) {
+            throw new Error('Invalid authentication options: missing challenge or allowCredentials');
+        }
+
+        // Step 2: Authenticate with passkey
+        const options = startData; // Directly use the response
+        console.log('Options for startAuthentication:', JSON.stringify(options, null, 2));
+        const credential = await startAuthentication(options);
+
+        // Step 3: Complete authentication
+        const completeResp = await fetch(`${API_URL}/api/auth/complete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, credential }),
+        });
+        const completeData = await completeResp.json();
+        if (!completeResp.ok) throw new Error(completeData.error || 'Login failed');
+
+        localStorage.setItem('token', completeData.token);
+        return completeData.user;
+    } catch (error) {
+        console.error('Login error:', error);
+        throw error;
     }
-
-    const credential = await startAuthentication(options);
-    console.log('Login credential:', credential);
-
-    const verifyResp = await fetch(`${API_URL}/api/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, credential }),
-    });
-    const data = await verifyResp.json();
-    console.log('Login verify response:', data);
-
-    if (!verifyResp.ok) {
-      const errorMsg = data.error ? String(data.error) : 'Login failed';
-      throw new Error(errorMsg);
-    }
-
-    localStorage.setItem('token', data.token);
-    return data.user;
-  } catch (error) {
-    console.error('Login error:', error);
-    throw error;
-  }
 }
 
 export function getToken() {
-  return localStorage.getItem('token');
+    return localStorage.getItem('token');
 }
 
 export function logout() {
-  localStorage.removeItem('token');
+    localStorage.removeItem('token');
+}
+
+export async function fetchWithAuth(url: string, options: RequestInit = {}) {
+    const token = getToken();
+    const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+    };
+    return fetch(url, { ...options, headers });
 }

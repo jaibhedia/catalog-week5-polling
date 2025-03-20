@@ -1331,6 +1331,7 @@ dependencies = [
  "jsonwebtoken",
  "serde",
  "serde_json",
+ "url",
  "uuid",
  "webauthn-rs",
 ]
