@@ -1,0 +1,32 @@
+[package]
+name = "backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "std", "fmt"] }
+serde = { version = "1.0", features = ["derive"] }
+webauthn-rs = { version = "0.5.1", features = ["danger-allow-state-serialisation"] }
+axum = { version = "0.7" ,features = ["ws"]}
+tokio = { version = "1.22.0", features = ["full"] }
+uuid = { version = "1.1.2", features = ["v4"] }
+url = "2"
+thiserror = "1.0"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "fs"] }
+tower-sessions = "0.13"
+http = "1.2.0"
+mongodb = "3.2.1"
+dotenv = "0.15.0"
+futures = "0.3.31"
+chrono = "0.4.40"
+tokio-tungstenite = "0.26.2"
+futures-util = "0.3.31"
+serde_json = "1.0.139"
+dotenvy = "0.15.7"
+
+[features]
+default = ["javascript"]
+wasm = []
+javascript = []

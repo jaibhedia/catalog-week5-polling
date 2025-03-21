@@ -1,0 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* .poll-btn {
+  @apply border rounded-full p-2 transition-all duration-200 hover:shadow-md;
+} */
