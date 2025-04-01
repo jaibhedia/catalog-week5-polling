@@ -6,6 +6,9 @@ const API_BASE_URL = `${process.env.NEXT_PUBLIC_BACKEND_URL}`;
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
 interface CreatePollData {

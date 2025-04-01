@@ -14,6 +14,7 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, MemoryStore, SessionManagerLayer,
 };
+use tower_sessions_redis_store::RedisStore;
 
 #[macro_use]
 extern crate tracing;
@@ -27,7 +28,11 @@ mod websocket;
 
 #[cfg(all(feature = "javascript", feature = "wasm", not(doc)))]
 compile_error!("Feature \"javascript\" and feature \"wasm\" cannot be enabled at the same time");
-
+async fn create_redis_store() -> RedisStore {
+    let client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
+    let connection = client.get_async_connection().await.unwrap();
+    RedisStore::new(connection)
+}
 #[tokio::main]
 async fn main() {
     // Initialize tracing
@@ -35,35 +40,42 @@ async fn main() {
 
     let app_state = AppState::new().await;
 
-    // Configure session store
-    let session_store = MemoryStore::default();
-    let session_layer = SessionManagerLayer::new(session_store)
-        .with_secure(false) // Set to true in production
-        .with_same_site(SameSite::Lax)
-        .with_expiry(Expiry::OnInactivity(Duration::hours(1)));
+    // CORS and session configurations for cross-domain setup
+let session_store = MemoryStore::default();
+let session_store = create_redis_store().await;
+// Create a session cookie name and session layer
+let session_layer = SessionManagerLayer::new(session_store)
+    .with_secure(true) // Enable for HTTPS
+    .with_same_site(SameSite::None) // Required for cross-site requests
+    .with_expiry(Expiry::OnInactivity(Duration::hours(1)))
+    // Use a strong, custom cookie name 
+    .with_cookie_name("polling_session")
+    // Add a session secret for better security
+    .with_cookie_path("/");
 
-    // Fixed CORS configuration that allows credentials
-    let cors = CorsLayer::new()
-        // Allow specific origins instead of Any
-        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-        .allow_origin("https://catalog-week5-polling.vercel.app".parse::<HeaderValue>().unwrap())
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::OPTIONS,
-        ])
-        // Explicitly list headers instead of using Any
-        .allow_headers([
-            header::CONTENT_TYPE,
-            header::AUTHORIZATION,
-            header::ACCEPT,
-            HeaderName::from_static("x-requested-with"),
-            HeaderName::from_static("x-csrf-token"),
-        ])
-        .allow_credentials(true)
-        .max_age(std::time::Duration::from_secs(3600));
+// Update allowed headers to include the session cookie
+let cors = CorsLayer::new()
+    .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+    .allow_origin("https://catalog-week5-polling.vercel.app".parse::<HeaderValue>().unwrap())
+    .allow_methods([
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::DELETE,
+        Method::OPTIONS,
+    ])
+    .allow_headers([
+        header::CONTENT_TYPE,
+        header::AUTHORIZATION,
+        header::ACCEPT,
+        header::COOKIE,
+        header::SET_COOKIE,
+        HeaderName::from_static("x-requested-with"),
+        HeaderName::from_static("x-csrf-token"),
+    ])
+    .allow_credentials(true)
+    .expose_headers([header::SET_COOKIE]) // Important for cookies to work
+    .max_age(std::time::Duration::from_secs(3600));
 
     // Build the router with all middleware applied together
     let app = Router::new()
