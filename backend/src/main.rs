@@ -14,7 +14,8 @@ use tower_sessions::{
     cookie::{time::Duration, SameSite},
     Expiry, MemoryStore, SessionManagerLayer,
 };
-use tower_sessions_redis_store::RedisStore;
+// Remove this import as we won't be using it
+// use tower_sessions_redis_store::RedisStore;
 
 #[macro_use]
 extern crate tracing;
@@ -29,11 +30,8 @@ mod websocket;
 #[cfg(all(feature = "javascript", feature = "wasm", not(doc)))]
 compile_error!("Feature \"javascript\" and feature \"wasm\" cannot be enabled at the same time");
 
-async fn create_redis_store() -> RedisStore<redis::aio::Connection> {
-    let client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
-    let connection = client.get_async_connection().await.unwrap();
-    RedisStore::new(connection)
-}
+// Remove this function as we'll use MemoryStore instead
+// async fn create_redis_store() -> RedisStore<redis::aio::Connection> { ... }
 
 #[tokio::main]
 async fn main() {
@@ -43,43 +41,44 @@ async fn main() {
     let app_state = AppState::new().await;
 
     // CORS and session configurations for cross-domain setup
-// let session_store = MemoryStore::default();
-let session_store = create_redis_store().await;
-// Create a session cookie name and session layer
-let session_layer = SessionManagerLayer::new(session_store)
-    .with_secure(true) // Enable for HTTPS
-    .with_same_site(SameSite::None) // Required for cross-site requests
-    .with_expiry(Expiry::OnInactivity(Duration::hours(1)))
-    // Use a strong, custom cookie name 
-    .with_cookie_name("polling_session")
-    // Add a session secret for better security
-    .with_cookie_path("/");
+    // Use MemoryStore which is simpler and doesn't have compatibility issues
+    let session_store = MemoryStore::default();
+    
+    // Create a session cookie name and session layer with corrected method names
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(true) // Enable for HTTPS
+        .with_same_site(SameSite::None) // Required for cross-site requests
+        .with_expiry(Expiry::OnInactivity(Duration::hours(1)))
+        // Use correct method names
+        .with_name("polling_session")
+        .with_path("/");
 
-// Update allowed headers to include the session cookie
-let cors = CorsLayer::new()
-    .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-    .allow_origin("https://catalog-week5-polling.vercel.app".parse::<HeaderValue>().unwrap())
-    .allow_methods([
-        Method::GET,
-        Method::POST,
-        Method::PUT,
-        Method::DELETE,
-        Method::OPTIONS,
-    ])
-    .allow_headers([
-        header::CONTENT_TYPE,
-        header::AUTHORIZATION,
-        header::ACCEPT,
-        header::COOKIE,
-        header::SET_COOKIE,
-        HeaderName::from_static("x-requested-with"),
-        HeaderName::from_static("x-csrf-token"),
-    ])
-    .allow_credentials(true)
-    .expose_headers([header::SET_COOKIE]) // Important for cookies to work
-    .max_age(std::time::Duration::from_secs(3600));
+    // Update allowed headers to include the session cookie
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
+        .allow_origin("https://catalog-week5-polling.vercel.app".parse::<HeaderValue>().unwrap())
+        .allow_methods([
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::DELETE,
+            Method::OPTIONS,
+        ])
+        .allow_headers([
+            header::CONTENT_TYPE,
+            header::AUTHORIZATION,
+            header::ACCEPT,
+            header::COOKIE,
+            header::SET_COOKIE,
+            HeaderName::from_static("x-requested-with"),
+            HeaderName::from_static("x-csrf-token"),
+        ])
+        .allow_credentials(true)
+        .expose_headers([header::SET_COOKIE]) // Important for cookies to work
+        .max_age(std::time::Duration::from_secs(3600));
 
-    // Build the router with all middleware applied together
+    // Rest of your code remains the same...
+    // Building the router with middleware
     let app = Router::new()
         .route("/", get(|| async { "Backend is running!" }))
         .route("/register_start/:username", axum::routing::post(crate::auth::start_register))
