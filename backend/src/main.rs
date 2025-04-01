@@ -1,27 +1,12 @@
-use shuttle_axum::ShuttleAxum;
-use crate::auth::{
-    finish_authentication, finish_register, get_current_user, start_authentication, start_register,
-};
 use crate::routes::polls;
 use crate::startup::AppState;
 use axum::{
-    extract::Extension,
-    http::StatusCode,
-    response::IntoResponse,
-    routing::{get, post},
+    routing::get,
     Router,
+    extract::Extension,
 };
-use dotenvy::dotenv;
-use http::{header, Method};
 use std::net::SocketAddr;
-use std::env;
-#[cfg(feature = "wasm")]
-use std::path::PathBuf;
-use tower_http::cors::CorsLayer;
-use tower_sessions::{
-    cookie::{time::Duration, SameSite},
-    Expiry, MemoryStore, SessionManagerLayer,
-};
+use tokio::net::TcpListener;
 
 #[macro_use]
 extern crate tracing;
@@ -36,8 +21,11 @@ mod websocket;
 #[cfg(all(feature = "javascript", feature = "wasm", not(doc)))]
 compile_error!("Feature \"javascript\" and feature \"wasm\" cannot be enabled at the same time");
 
-#[shuttle_runtime::main]
-async fn main() -> ShuttleAxum {
+#[tokio::main]
+async fn main() {
+    // Initialize tracing
+    tracing_subscriber::fmt::init();
+
     let app_state = AppState::new().await;
 
     let app = Router::new()
@@ -52,5 +40,12 @@ async fn main() -> ShuttleAxum {
         .route("/ws", axum::routing::get(crate::websocket::websocket_handler))
         .layer(Extension(app_state));
 
-    Ok(app.into()) 
+    // Set up the server address
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    info!("Server listening on {}", addr);
+
+    // Start the HTTP server
+    let listener = TcpListener::bind(addr).await.unwrap();
+    info!("Listening on {}", listener.local_addr().unwrap());
+    axum::serve(listener, app).await.unwrap();
 }
