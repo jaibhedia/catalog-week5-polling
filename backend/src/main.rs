@@ -10,6 +10,10 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use http::header;
+use tower_sessions::{
+    cookie::{time::Duration, SameSite},
+    Expiry, MemoryStore, SessionManagerLayer,
+};
 
 #[macro_use]
 extern crate tracing;
@@ -30,6 +34,13 @@ async fn main() {
     tracing_subscriber::fmt::init();
 
     let app_state = AppState::new().await;
+
+    // Configure session store
+    let session_store = MemoryStore::default();
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false) // Set to true in production
+        .with_same_site(SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::hours(1)));
 
     // Fixed CORS configuration that allows credentials
     let cors = CorsLayer::new()
@@ -66,6 +77,8 @@ async fn main() {
         .merge(polls::router(app_state.broadcast_tx.clone()))
         .route("/ws", axum::routing::get(crate::websocket::websocket_handler))
         .layer(Extension(app_state))
+        // Add the session layer before cors
+        .layer(session_layer)
         .layer(cors);
 
     // Set up the server address
