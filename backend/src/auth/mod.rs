@@ -1,4 +1,3 @@
-// src/auth/mod.rs
 use axum::{
     extract::{Extension, Json, Path},
     http::StatusCode,
@@ -10,6 +9,7 @@ use mongodb::bson::doc;
 use uuid::Uuid;
 use crate::error::WebauthnError;
 use crate::startup::{AppState, UserData};
+
 
 pub async fn start_register(
     Extension(app_state): Extension<AppState>,

@@ -1,0 +1,3 @@
+name = "polling-app"
+use_cargo_chef = false
+assets = []

@@ -25,8 +25,14 @@ tokio-tungstenite = "0.26.2"
 futures-util = "0.3.31"
 serde_json = "1.0.139"
 dotenvy = "0.15.7"
+shuttle-runtime = "0.39"
+shuttle-axum = "0.39"
 
 [features]
 default = ["javascript"]
 wasm = []
 javascript = []
+
+[package.metadata.shuttle]
+no-cache = true
+
