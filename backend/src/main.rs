@@ -28,11 +28,13 @@ mod websocket;
 
 #[cfg(all(feature = "javascript", feature = "wasm", not(doc)))]
 compile_error!("Feature \"javascript\" and feature \"wasm\" cannot be enabled at the same time");
-async fn create_redis_store() -> RedisStore {
+
+async fn create_redis_store() -> RedisStore<redis::aio::Connection> {
     let client = redis::Client::open("redis://127.0.0.1:6379").unwrap();
     let connection = client.get_async_connection().await.unwrap();
     RedisStore::new(connection)
 }
+
 #[tokio::main]
 async fn main() {
     // Initialize tracing
@@ -41,7 +43,7 @@ async fn main() {
     let app_state = AppState::new().await;
 
     // CORS and session configurations for cross-domain setup
-let session_store = MemoryStore::default();
+// let session_store = MemoryStore::default();
 let session_store = create_redis_store().await;
 // Create a session cookie name and session layer
 let session_layer = SessionManagerLayer::new(session_store)
