@@ -35,7 +35,7 @@ async fn main() {
     let cors = CorsLayer::new()
         // Allow specific origins instead of Any
         .allow_origin("http://localhost:3000".parse::<HeaderValue>().unwrap())
-        .allow_origin("https://catalog-week5-polling.vercel.app/".parse::<HeaderValue>().unwrap())
+        .allow_origin("https://catalog-week5-polling.vercel.app".parse::<HeaderValue>().unwrap())
         .allow_methods([
             Method::GET,
             Method::POST,
